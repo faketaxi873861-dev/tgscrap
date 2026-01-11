@@ -6,11 +6,13 @@ from telethon.sessions import StringSession
 from telethon.tl.types import DocumentAttributeFilename
 import pytz
 
-st.markdown("<style>header {visibility: hidden;}#MainMenu {visibility: hidden;}footer {visibility: hidden;}</style>", unsafe_allow_html=True)
+
 
 
 # --- PROJECT BRANDING ---
 NAME = "RITIK KOLI"
+
+st.markdown("<style>header {visibility: hidden;}#MainMenu {visibility: hidden;}footer {visibility: hidden;}</style>", unsafe_allow_html=True)
 
 # --- CONFIGURATION ---
 api_id = 27485643
@@ -134,6 +136,7 @@ if st.button("🚀 Start Scraping"):
 # --- FOOTER ---
 st.divider()
 st.markdown(f"<center><b>Framework Made By {NAME}</b></center>", unsafe_allow_html=True)
+
 
 
 
