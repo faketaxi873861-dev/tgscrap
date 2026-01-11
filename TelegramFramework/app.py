@@ -6,6 +6,23 @@ from telethon.sessions import StringSession
 from telethon.tl.types import DocumentAttributeFilename
 import pytz
 
+st.markdown
+# 1. ADD THIS BLOCK AT THE TOP
+st.set_page_config(page_title="Telegram Scraper", layout="wide")
+
+hide_github_style = """
+    <style>
+    /* This targets the GitHub link specifically */
+    header {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_github_style, unsafe_allow_html=True)
+
+# 2. YOUR EXISTING CODE CONTINUES BELOW...
+st.title("📡 Telegram Message Scraper")
+
 # --- PROJECT BRANDING ---
 NAME = "RITIK KOLI"
 
@@ -131,3 +148,4 @@ if st.button("🚀 Start Scraping"):
 # --- FOOTER ---
 st.divider()
 st.markdown(f"<center><b>Framework Made By {NAME}</b></center>", unsafe_allow_html=True)
+
