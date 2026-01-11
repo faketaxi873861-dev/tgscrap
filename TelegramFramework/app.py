@@ -49,7 +49,6 @@ with st.sidebar:
         st.header("🔐 Login")
         phone = st.text_input("Phone Number (+...)", placeholder="+91...")
         
-        # FIXED: Added missing colons and proper indentation
         if st.button("1. Send OTP"):
             if phone:
                 loop.run_until_complete(client.send_code_request(phone))
@@ -73,4 +72,62 @@ with st.sidebar:
 
 # --- SCRAPER UI ---
 st.sidebar.header("⚙️ Scraper Settings")
-channel_link = st.sidebar.text_input("Channel Link", "
+
+# FIXED: Line 76 - Closed the quotation marks correctly
+channel_link = st.sidebar.text_input("Channel Link", value="https://t.me/+7PGkmLqDYigyNzZl")
+
+limit = st.sidebar.number_input("Message Limit", min_value=1, max_value=10000, value=500)
+keyword = st.sidebar.text_input("Search (Optional)")
+
+async def scrape_logic():
+    entity = await client.get_entity(channel_link)
+    
+    # Channel Details
+    channel_name = entity.title
+    if entity.username:
+        channel_url = f"https://t.me/{entity.username}"
+    else:
+        channel_url = f"https://t.me/c/{abs(entity.id)}"
+        
+    data = []
+    async for msg in client.iter_messages(entity, limit=limit, search=keyword or None):
+        fname = "N/A"
+        if msg.document:
+            for attr in msg.document.attributes:
+                if isinstance(attr, DocumentAttributeFilename):
+                    fname = attr.file_name
+        
+        dt = msg.date.astimezone(pytz.timezone(target_timezone)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        data.append({
+            'Channel Name': channel_name,
+            'Channel URL': channel_url,
+            'Date': dt, 
+            'Views': msg.views or 0, 
+            'File Name': fname, 
+            'Message': msg.text or "",
+            'Message URL': f"{channel_url}/{msg.id}"
+        })
+    return pd.DataFrame(data)
+
+# --- MAIN ACTION ---
+if st.button("🚀 Start Scraping"):
+    if not is_authorized:
+        st.error("Please login via the sidebar first.")
+    else:
+        with st.spinner("Scraping messages..."):
+            try:
+                df = loop.run_until_complete(scrape_logic())
+                if not df.empty:
+                    st.success(f"Scraped {len(df)} messages from '{df['Channel Name'][0]}'")
+                    st.dataframe(df, use_container_width=True)
+                    csv = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
+                    st.download_button("📥 Download Full CSV", csv, "telegram_data.csv", "text/csv")
+                else:
+                    st.warning("No messages found.")
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+# --- FOOTER ---
+st.divider()
+st.markdown(f"<center><b>Framework Made By {NAME}</b></center>", unsafe_allow_html=True)
