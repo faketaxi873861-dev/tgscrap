@@ -19,7 +19,6 @@ st.set_page_config(page_title=f"Telegram Scraper - {NAME}", layout="wide")
 # --- UI HEADER ---
 st.title("📡 Telegram Message Scraper")
 st.markdown(f"### **Made by {NAME}**")
-st.info("This framework allows you to scrape messages, filenames, and channel details into a permanent CSV.")
 
 # --- ASYNC LOOP HANDLING ---
 if "loop" not in st.session_state:
@@ -49,10 +48,14 @@ with st.sidebar:
     if not is_authorized:
         st.header("🔐 Login")
         phone = st.text_input("Phone Number (+...)", placeholder="+91...")
+        
+        # FIXED: Added missing colons and proper indentation
         if st.button("1. Send OTP"):
             if phone:
                 loop.run_until_complete(client.send_code_request(phone))
                 st.info("OTP Sent! Check your Telegram.")
+            else:
+                st.error("Enter phone number first.")
         
         otp = st.text_input("Enter OTP Code")
         if st.button("2. Verify & Login"):
@@ -64,4 +67,10 @@ with st.sidebar:
                 st.error(f"Login Error: {e}")
     else:
         st.success("✅ Telegram Connected")
-        if st.button
+        if st.button("Logout"):
+            loop.run_until_complete(client.log_out())
+            st.rerun()
+
+# --- SCRAPER UI ---
+st.sidebar.header("⚙️ Scraper Settings")
+channel_link = st.sidebar.text_input("Channel Link", "
