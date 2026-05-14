@@ -2,3 +2,5 @@ streamlit
 telethon
 pandas
 pytz
+qrcode
+pillow
