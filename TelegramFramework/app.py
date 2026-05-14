@@ -12,7 +12,6 @@ from io import BytesIO
 NAME = "RITIK KOLI"
 
 # --- CONFIGURATION ---
-# Note: In a production app, use st.secrets for these!
 api_id = 27485643
 api_hash = '42ebf6916aa332d152e3bd4476e29061'
 target_timezone = 'Asia/Kolkata'
@@ -75,29 +74,34 @@ with st.sidebar:
                 qr_container = st.empty()
                 
                 async def qr_login_process():
-                    # 'login_op' avoids conflict with the function name
-                    login_op = await client.qr_login()
+                    # This starts the QR session
+                    qr_op = await client.qr_login()
                     
-                    while not login_op.is_logged_in():
-                        # Create QR Code Image
-                        img = qrcode.make(login_op.url)
+                    while True:
+                        # Create and show QR Image
+                        img = qrcode.make(qr_op.url)
                         buf = BytesIO()
                         img.save(buf)
                         qr_container.image(buf.getvalue(), caption="Scan: Settings > Devices > Link Desktop Device")
                         
                         try:
-                            # Wait for scan (times out every 10s to refresh loop)
-                            await login_op.wait(timeout=10)
+                            # wait() returns a user object when the scan is successful
+                            user = await qr_op.wait(timeout=10)
+                            if user:
+                                return True
                         except asyncio.TimeoutError:
+                            # Continue the loop if it hasn't been scanned yet
                             continue
-                    return True
+                        except Exception as e:
+                            st.error(f"QR Error: {e}")
+                            return False
 
                 try:
                     if loop.run_until_complete(qr_login_process()):
                         st.success("Logged in via QR!")
                         st.rerun()
                 except Exception as e:
-                    st.error(f"QR Error: {e}")
+                    st.error(f"Authentication Failed: {e}")
     else:
         st.success("✅ Telegram Connected")
         if st.button("Logout"):
@@ -144,7 +148,7 @@ if st.button("🚀 Start Scraping"):
             try:
                 df = loop.run_until_complete(scrape_logic())
                 if not df.empty:
-                    st.success(f"Scraped {len(df)} messages from '{df['Channel Name'][0]}'")
+                    st.success(f"Scraped {len(df)} messages")
                     st.dataframe(df, use_container_width=True)
                     csv = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
                     st.download_button("📥 Download Full CSV", csv, "telegram_data.csv", "text/csv")
