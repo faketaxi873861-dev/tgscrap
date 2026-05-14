@@ -2,3 +2,4 @@ streamlit
 telethon
 pandas
 pytz
+tgcrypto
