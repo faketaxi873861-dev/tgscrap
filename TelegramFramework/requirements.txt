@@ -3,3 +3,5 @@ telethon
 pandas
 pytz
 tgcrypto
+qrcode
+pillow
