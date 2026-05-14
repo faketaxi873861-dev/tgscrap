@@ -1,7 +1,7 @@
 import streamlit as st
 import asyncio
 import pandas as pd
-from telethon import TelegramClient, events
+from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.tl.types import DocumentAttributeFilename
 import pytz
@@ -10,7 +10,9 @@ from io import BytesIO
 
 # --- PROJECT BRANDING ---
 NAME = "RITIK KOLI"
+
 # --- CONFIGURATION ---
+# Note: In a production app, use st.secrets for these!
 api_id = 27485643
 api_hash = '42ebf6916aa332d152e3bd4476e29061'
 target_timezone = 'Asia/Kolkata'
@@ -53,8 +55,11 @@ with st.sidebar:
             phone = st.text_input("Phone Number (+...)", placeholder="+91...")
             if st.button("1. Send OTP"):
                 if phone:
-                    loop.run_until_complete(client.send_code_request(phone))
-                    st.info("OTP Sent!")
+                    try:
+                        loop.run_until_complete(client.send_code_request(phone))
+                        st.info("OTP Sent! Check your Telegram.")
+                    except Exception as e:
+                        st.error(f"Error: {e}")
             
             otp = st.text_input("Enter OTP Code")
             if st.button("2. Verify & Login"):
@@ -68,24 +73,31 @@ with st.sidebar:
         else:  # QR Code Method
             if st.button("Generate QR Code"):
                 qr_container = st.empty()
-                async def qr_login():
-                    qr_login = await client.qr_login()
-                    while not qr_login.is_logged_in():
-                        # Generate QR Image
-                        img = qrcode.make(qr_login.url)
+                
+                async def qr_login_process():
+                    # 'login_op' avoids conflict with the function name
+                    login_op = await client.qr_login()
+                    
+                    while not login_op.is_logged_in():
+                        # Create QR Code Image
+                        img = qrcode.make(login_op.url)
                         buf = BytesIO()
                         img.save(buf)
-                        qr_container.image(buf.getvalue(), caption="Scan with Telegram > Devices > Link Device")
+                        qr_container.image(buf.getvalue(), caption="Scan: Settings > Devices > Link Desktop Device")
                         
                         try:
-                            await qr_login.wait(timeout=10)
+                            # Wait for scan (times out every 10s to refresh loop)
+                            await login_op.wait(timeout=10)
                         except asyncio.TimeoutError:
                             continue
                     return True
 
-                if loop.run_until_complete(qr_login()):
-                    st.success("Logged in via QR!")
-                    st.rerun()
+                try:
+                    if loop.run_until_complete(qr_login_process()):
+                        st.success("Logged in via QR!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"QR Error: {e}")
     else:
         st.success("✅ Telegram Connected")
         if st.button("Logout"):
@@ -132,7 +144,7 @@ if st.button("🚀 Start Scraping"):
             try:
                 df = loop.run_until_complete(scrape_logic())
                 if not df.empty:
-                    st.success(f"Scraped {len(df)} messages")
+                    st.success(f"Scraped {len(df)} messages from '{df['Channel Name'][0]}'")
                     st.dataframe(df, use_container_width=True)
                     csv = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
                     st.download_button("📥 Download Full CSV", csv, "telegram_data.csv", "text/csv")
@@ -141,5 +153,6 @@ if st.button("🚀 Start Scraping"):
             except Exception as e:
                 st.error(f"Error: {e}")
 
+# --- FOOTER ---
 st.divider()
 st.markdown(f"<center><b>Framework Made By {NAME}</b></center>", unsafe_allow_html=True)
