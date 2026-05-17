@@ -34,7 +34,7 @@ st.markdown("""
 
 # --- UI HEADER ---
 st.title("📡 Advanced Telegram Message Scraper")
-st.markdown(f"📊 *Enhanced Hybrid Engine (Colab + Web Framework Integration)* | **Made by {NAME}**")
+st.markdown(f"📊 *Enhanced Hybrid Engine (Separated Targets & Auto-Discovery)* | **Made by {NAME}**")
 st.divider()
 
 # --- ASYNC LOOP HANDLING ---
@@ -120,41 +120,57 @@ with st.sidebar:
 
 # --- SCRAPER UI ---
 st.sidebar.header("⚙️ Target Profile Configuration")
-# Unified target input box supporting link types from both setups
+
+# SEPARATED INPUTS: Box 1 for Identifiers/IDs, Box 2 for Private Joinchat links
 channel_target = st.sidebar.text_input(
-    "Channel Identifier", 
-    value="https://t.me/+7PGkmLqDYigyNzZl",
-    help="Accepts Public links, Invite links, Channel Username, or Raw Numeric IDs"
+    "Channel Identifier / ID", 
+    value="",
+    help="Accepts Public Links, Usernames, or Raw Numeric IDs (e.g., -10012345678)"
+)
+
+joinchat_target = st.sidebar.text_input(
+    "Private Invite Link (joinchat)", 
+    value="",
+    placeholder="https://t.me/+...",
+    help="Paste private invite links here (starts with + or joinchat)"
 )
 
 limit = st.sidebar.number_input("Maximum Record Limit", min_value=1, max_value=20000, value=500, step=50)
 keyword = st.sidebar.text_input("Context Filter Keyword (Optional)")
 
+# Helper logic to fetch all joined channels if inputs are empty
+async def fetch_joined_channels():
+    channels_list = []
+    async for dialog in client.iter_dialogs():
+        if dialog.is_channel:
+            channels_list.append({
+                'Channel Name': dialog.name,
+                'Channel ID': dialog.id
+            })
+    return pd.DataFrame(channels_list)
+
 async def scrape_logic():
-    target = channel_target.strip()
-    
-    # Process numeric inputs derived from the Colab approach
-    if target.startswith('-') or target.isdigit():
-        entity = await client.get_entity(int(target))
+    # Determine which target to use
+    if joinchat_target.strip():
+        target = joinchat_target.strip()
     else:
-        entity = await client.get_entity(target)
-        
+        target = channel_target.strip()
+        if target.startswith('-') or target.isdigit():
+            target = int(target)
+            
+    entity = await client.get_entity(target)
     channel_name = entity.title
     sub_count = getattr(entity, 'participants_count', 'Hidden/N/A')
     
-    # Accurate URL routing for public vs private contexts
     if getattr(entity, 'username', None):
         channel_url = f"https://t.me/{entity.username}"
     else:
         channel_url = f"https://t.me/c/{abs(entity.id)}"
         
     data = []
-    
-    # Visual Progress feedback element for web application flow
     progress_bar = st.progress(0.0)
     status_text = st.empty()
     
-    # Fetch data structure dynamically matching core metrics
     current_count = 0
     async for msg in client.iter_messages(entity, limit=limit, search=keyword or None):
         fname = "N/A"
@@ -193,8 +209,21 @@ async def scrape_logic():
 if st.button("🚀 Execute Cloud Extraction"):
     if not is_authorized:
         st.error("Access Denied: Please authorize your session via the control sidebar panel first.")
-    elif not channel_target:
-        st.warning("Input Error: Please pass a valid Channel target configuration.")
+        
+    # CONDITION: If both input boxes are empty, fetch and show channel list
+    elif not channel_target.strip() and not joinchat_target.strip():
+        st.info("🔍 Targets are empty! Fetching your joined channels list...")
+        with st.spinner("Loading channels ledger from Telegram..."):
+            try:
+                channels_df = loop.run_until_complete(fetch_joined_channels())
+                if not channels_df.empty:
+                    st.success("📋 Found Channels! Copy the 'Channel ID' and paste it into the Sidebar input.")
+                    st.dataframe(channels_df, use_container_width=True)
+                else:
+                    st.warning("No channels found on this account.")
+            except Exception as e:
+                st.error(f"Failed to fetch list: {e}")
+                
     else:
         with st.spinner("Extracting parameters and querying Telegram ledger..."):
             try:
@@ -203,18 +232,14 @@ if st.button("🚀 Execute Cloud Extraction"):
                 if not df.empty:
                     st.success(f"Transaction Complete: Extracted {len(df)} records from database context.")
                     
-                    # Highlight Dashboard Metrics
                     m1, m2, m3 = st.columns(3)
                     m1.metric("Channel Target Title", title)
                     m2.metric("Subscriber Capacity", total_subs)
                     m3.metric("Records Scraped", len(df))
                     
                     st.divider()
-                    
-                    # Modern functional DataFrame View
                     st.dataframe(df, use_container_width=True)
                     
-                    # Generate dynamic Download Artifact
                     csv = df.to_csv(index=False, encoding='utf-8-sig').encode('utf-8-sig')
                     st.download_button(
                         label="📥 Download Extracted Datatable (CSV)",
