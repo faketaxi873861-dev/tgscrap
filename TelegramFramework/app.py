@@ -171,10 +171,84 @@ ASSET_LIST = [
     "AADU 3", "Love Mocktail 3", "Bowling-ah? Fielding-ah?", "Cricket Darbar", "Tighee", "Neelira"
 ]
 
-# Sort asset list by length descending to match longer names first (e.g., "Kumkum Bhagya (Arabic)" before "Kumkum Bhagya")
 ASSET_LIST_SORTED = sorted(ASSET_LIST, key=len, reverse=True)
 
-# --- SCRAPER UI ---
+# --- GLOBAL VARIABLES INITIALIZATION ---
+# FIXED: Initializing is_authorized to avoid global NameError
+is_authorized = False
+
+async def check_auth():
+    return await client.is_user_authorized()
+
+# Check authentication at structural launch
+try:
+    is_authorized = loop.run_until_complete(check_auth())
+except Exception:
+    is_authorized = False
+
+# --- SIDEBAR AUTHENTICATION UI ---
+with st.sidebar:
+    st.header("👤 System Developer")
+    st.markdown(f"🔬 **{NAME}**")
+    st.divider()
+
+    if not is_authorized:
+        login_method = st.radio("Choose Verification Method", ["Phone + OTP", "Secure QR Code"])
+
+        if login_method == "Phone + OTP":
+            phone = st.text_input("Phone Number", placeholder="+91...")
+            if st.button("1. Request Authorization OTP"):
+                if phone:
+                    try:
+                        loop.run_until_complete(client.send_code_request(phone))
+                        st.info("OTP Sent! Check your active Telegram apps.")
+                    except Exception as e:
+                        st.error(f"Error sending code: {e}")
+            
+            otp = st.text_input("Enter Received OTP")
+            if st.button("2. Finalize Validation"):
+                try:
+                    loop.run_until_complete(client.sign_in(phone, otp))
+                    st.success("Authorization Complete!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Login Exception: {e}")
+
+        else:  # QR Code Method
+            if st.button("Generate Secure QR Entry"):
+                qr_container = st.empty()
+                
+                async def qr_login_process():
+                    qr_op = await client.qr_login()
+                    while True:
+                        img = qrcode.make(qr_op.url)
+                        buf = BytesIO()
+                        img.save(buf)
+                        qr_container.image(buf.getvalue(), caption="Scan: Settings > Devices > Link Desktop Device")
+                        
+                        try:
+                            user = await qr_op.wait(timeout=10)
+                            if user:
+                                return True
+                        except asyncio.TimeoutError:
+                            continue
+                        except Exception as e:
+                            st.error(f"QR Interruption: {e}")
+                            return False
+
+                try:
+                    if loop.run_until_complete(qr_login_process()):
+                        st.success("Authorized via QR successfully!")
+                        st.rerun()
+                except Exception as e:
+                    st.error(f"Authentication Failure: {e}")
+    else:
+        st.success("✅ Engine Status: Connected")
+        if st.button("Terminate Session (Logout)"):
+            loop.run_until_complete(client.log_out())
+            st.rerun()
+
+# --- SCRAPER UI TARGET CONFIG ---
 st.sidebar.header("⚙️ Target Profile Configuration")
 
 channel_target = st.sidebar.text_input(
@@ -248,19 +322,16 @@ async def scrape_logic():
             content_type = "Video"
             
         # 2. ADVANCED PARTIAL MATCH LOGIC
-        # Clean up target text (remove special characters/extra spaces to increase matching rates)
         search_blob = f" {msg_text} {fname} ".lower()
         search_blob_clean = re.sub(r'[^a-z0-9\s]', ' ', search_blob)
         search_blob_clean = " ".join(search_blob_clean.split())
 
-        matched_asset = "na"
+        matched_asset = "N/A"
         for asset in ASSET_LIST_SORTED:
-            # Clean asset string for a loose structural comparison
             asset_clean = asset.lower()
             asset_clean_noparen = re.sub(r'[^a-z0-9\s]', ' ', asset_clean)
             asset_clean_final = " ".join(asset_clean_noparen.split())
             
-            # Checks if cleaned asset name exists as a substring or part of full string
             if asset_clean_final in search_blob_clean or asset_clean in search_blob:
                 matched_asset = asset
                 break
